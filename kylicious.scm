@@ -10,7 +10,7 @@
 ;   search -> predicate to see if a bookmark matching any part is in the file |
 ;   tag_list -> produce a list of titles that have a given tag                X
 ;   tag_stats -> produce stats about the tags in the database:                |
-;                number of bookmarks/tag                                      |
+;                number of bookmarks/tag                                      X 
 ;                ...?                                                         |
 ;   modify -> change the fields of a bookmark                                 |
 
@@ -102,17 +102,40 @@
                l)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;~~~~~~~~~~~
-;(define (count-tags bm countl)
-;  (let (tags (bookmark-tags bm)) ;;assume that tags is never empty
-;    (...)))
-;;;;;;;;;;;;;;;;;;;;;;;~~~~~~~~~~~
-;; Return a list of tuples with tag-names and count of each tag
-; (listof struct(bookmark)) -> (listof '(string num))
-;(define (tag-counts l)
-;  (cond
-;    [(empty? l) empty]
-;    [else ]))
-
+(define (tags-string<? x y)
+  (string<? (car x) (car y)))
+;; Will take a list of bookmarks and a hash table and output the number of times
+;;  each tag appears in the list of bookmarks in a hashtble. To make it
+;;  recursive, one must pass in an existing hash-table.
+;; (listof bookmarks) hash-table => (listof (listof "tag" #count)*)
+(define (count-tags-helper bml counthash)
+  (cond
+    [(empty? bml) (sort (hash-table-map
+                         counthash
+                         (lambda (tag count) (list (symbol->string tag) count)))
+                        tags-string<?)]
+    [else
+     (let ((tags (bookmark-tags (car bml))))
+       (cond
+         [(empty? tags) (count-tags-helper (cdr bml) counthash)]
+         [else
+          (begin
+            (if (not (number? (hash-table-get counthash (string->symbol (car tags)) #t)))
+                (hash-table-put! counthash (string->symbol (car tags)) 1) ;if the tag isn't already in, add it
+                (hash-table-put!
+                 counthash
+                 (string->symbol (car tags))
+                 (+ 1 (hash-table-get counthash (string->symbol (car tags))))))
+            (count-tags-helper
+             (cons (make-bookmark
+                    (bookmark-URL (car bml))
+                    (bookmark-name (car bml))
+                    (cdr tags))
+                   (cdr bml))
+             counthash))]))]))
+;; The real frontend!
+(define (count-tags bmarklist)
+  (count-tags-helper bmarklist (make-hash-table)))
 
 ;(set! filename (open-input-file "zbookmarktest.txt"))
 ;(set! test2 (read filename))
